@@ -1,0 +1,316 @@
+{% load static %}
+<html>
+<head>
+<title>Cafe world</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inconsolata">
+<style>
+body, html {
+  height: 100%;
+  font-family: "Inconsolata", sans-serif;
+}
+
+.bgimg {
+  background-position: center;
+  background-image: url("{% static 'images/menu1.jpg' %}");
+  background-attachment: fixed;
+  height: 100%;
+  width: 100%;
+  background-size:contain;
+}
+
+
+/* .footer ,.push {
+  
+  width:100%;
+   height:100px;
+   bottom:0;
+  left: 0;
+  position:relative;
+  margin-top: 650px;
+} */
+.menu {
+  display: none;
+}
+
+.cus-file-upload input[type="file"] {
+ display:visible;
+}
+
+.w3-input {
+  width:28%;
+  display: inline;
+  padding: 10px;
+  
+}
+
+
+.w3-input1 {
+  width:28%;
+  display: inline;
+  padding: 7px;
+  
+}
+
+
+.w3-input2 {
+  width:28%;
+  height: 30%;
+  display: inline;
+ 
+  
+}
+table{
+  border-radius: 0%;
+  margin-left: 180px;
+  background: #919d9f;
+  text-align: center;
+}
+
+.dish{
+  width:149px;
+  height: 150px;
+  background:#8c8a76;
+  font-family:'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif
+}
+.pic{
+  height: 150px;
+  width:220px;
+  background: #d2d9d2;
+  font-family:'Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', Geneva, Verdana, sans-serif;
+}
+.desc{
+  height: 150px;
+  width:336px;
+  background: #d2d9d2;
+}
+.price{
+  height: 150px;
+  width:100px;
+  color: rgb(97, 23, 23);
+
+}
+.tumbnail{
+
+  height: 180px;
+  width:190px;
+  
+}
+.sug{
+  text-align: center;
+}
+
+.form-title{
+  color: antiquewhite;
+  font-size: 17px;
+}
+
+.w3-content{
+  height: 100%;
+}
+
+.update-button{
+  width:56%; 
+  font-size: small; 
+  color: white; 
+  padding: 6px; 
+  padding-bottom: 2 px;
+  background-color: black;
+}
+
+
+.delete-button{
+  width:56%; 
+  font-size: small; 
+  color: white; 
+  padding: 6px; 
+  margin-top: 8px;
+  background-color: black;
+}
+</style>
+</head>
+<body>
+<!-- Links (sit on top) -->
+<div class="w3-top">
+  <div class="w3-row w3-padding w3-black">
+    <div class="w3-col s3">
+      <a href="/" class="w3-button w3-block w3-black">HOME</a>
+    </div>
+    <div class="w3-col s2">
+      <a href="/#about" class="w3-button w3-block w3-black">ABOUT</a>
+    </div>
+    <div class="w3-col s2">
+      <a href="/#menu" class="w3-button w3-block w3-black">MENU</a>
+    </div>
+    <div class="w3-col s2">
+      <a href="/#where" class="w3-button w3-block w3-black">WHERE</a>
+    </div>
+    <div class="w3-col s2">
+      <a href="{% url 'logout' %}" class="w3-button w3-block w3-black">LOGOUT</a>
+    </div>
+  </div>
+</div>
+  
+
+    <!-- About Container -->
+        <div class="w3-container " id="">
+          
+            <div class="w3-content bgimg" ;><br><br><br>
+                
+                  <div class="row">
+                    <div class="col-md-12" >
+                      <form class="" method="post" action="{% url 'mymenu' %}" enctype="multipart/form-data" style="text-align: center;"><br>
+                        <label class="form-title" style="font-size:x-large">&nbsp;&nbsp;&nbsp;<b><i>Suggest Your Dishes,Eats and Drinks!</i></b></label>
+                        {% csrf_token %}
+                       
+                          <div class="col-md-2 ">
+                            <br>
+                              <label class="form-title">Category:</label>
+                          </div>
+                          <div class="col-8">
+                            <select class="form-control form-control-input w3-input  w3-border" style="text-align: center;" name="{{ form.category.name }}"
+                            id="{{ form.category.id_for_label }}"
+                            placeholder="Category"
+                            required>
+                            {% for item in form.category %}
+                               {{item}}
+                            {% endfor %}
+                            </select>
+                              {% if form.errors.category %}
+                                <p style="color: red">{{form.errors.category}}</p>
+                              {% endif %}
+                          </div>
+                          <div class="col-2 ">
+                            <label class="form-title">Dish Name:</label>
+                        </div>
+                        <div class="col-3">
+                          <input
+                          name="{{ form.dish_name.name }}"
+                          class="form-control form-control-input w3-input1  w3-border"
+                          id="{{ form.dish_name.id_for_label }}"
+                          {% if form.dish_name.value != None %}value="{{ form.dish_name.value|stringformat:'s' }}"{% endif %}
+                          maxlength="{{ form.dish_name.field.max_length }}"
+                          {% if form.dish_name.field.required %}required{% endif %}
+                          placeholder="Dish Name" autocomplete="off">
+                          {% if form.errors.dish_name %}
+                            <p style="color: red">{{form.errors.dish_name}}</p>
+                          {% endif %}
+                        </div>
+                        <div class="col-2 ">
+                          <label class="form-title">Discription:</label>
+                      </div>
+                      <div class="col-3">
+                        <input
+                        name="{{ form.dish_discription.name }}"
+                        class="form-control form-control-input w3-input2  w3-border"
+                        id="{{ form.dish_discription.id_for_label }}"
+                        {% if form.dish_discription.value != None %}value="{{ form.dish_discription.value|stringformat:'s' }}"{% endif %}
+                        maxlength="{{ form.dish_discription.field.max_length }}"
+                        {% if form.dish_discription.field.required %}required{% endif %}
+                        placeholder="Description" autocomplete="off">
+                        {% if form.errors.dish_discription %}
+                          <p style="color: red">{{form.errors.dish_discription}}</p>
+                        {% endif %}
+                      </div>
+                      <div class="col-2 ">
+                        <label class="form-title">Dish Image:</label>
+                    </div>
+                    
+                    <div class="col-3 cus-file-upload">
+                      <div class="fileuploaddiv d-none form-control form-control-input w3-input  w3-border" id="filenameblock">
+                      
+                      <span class=" mem-setup-blu-f underline ml-1"  style="color:burlywood;">
+                        <b>Upload(Image)</b></span>
+                         <span style="margin-left: 1em; color:burlywood;"> 
+                            {% if form.dish_photo %}
+                            <a href= "{{ form.dish_photo.url |stringformat:'s' }}" >{{ form.dish_photo }}</a> </span>
+                            {% endif %}
+                      </div>
+                    </div><br><br>
+                    <button type="submit" class=" w3-tag w3-wide ">Add New</button>
+                    <button type="reset" class=" w3-tag w3-wide ">Clear</button>
+                        </div>
+                       
+                    </form>
+                    </div>
+                  </div>   
+                  
+                  <label class="sug"><h6><u>Suggested Dishes</u></h6></label> 
+                  <table border="1">
+                    {% for menu in menus %}
+                   
+                    <tr><td  class="dish"><b><u>{{ menu.dish_name }}</u></b></td>
+                      
+                        <td  class="pic"><a><img class="tumbnail" src="/media/{{menu.dish_photo}}" ></img></a>
+                        <td  class="desc"><i>{{ menu.dish_discription }}</i></td>
+                        {% if user.is_superuser %}
+                        
+                        <td  class="price" > <br><label >Price</label><br> <br><br>
+                          <form method="post" action="{% url 'update_menu' id=menu.id %}" >  
+                            <input type="hidden" value="{{menu.id}}" name="id">
+                            {% csrf_token %}
+                          $<input
+                          name="dish_price"
+                          class="form-control form-control-input w3-input  w3-border"
+                          style="width:38%;"
+                          value="{{ menu.dish_price }}"
+                        
+                          {% if form.dish_price.field.required %}required{% endif %}
+                          placeholder="Dish price" autocomplete="off" style="width:45%;">/-
+                            {% if form.errors.dish_price %}
+                              <p style="color: red">{{form.errors.dish_price}}</p>
+                            {% endif %}
+
+
+                        </td>
+                        <input type="hidden" name="approval_flag" value="False" />
+                        
+                        <td  class="price" ><label>Menu Approval</label><br><br><input type="checkbox"  {% if menu.approval_flag  %} checked {% endif %}   name="approval_flag"  >&nbsp;
+                          <button  class="update-button" type="submit">Update</button> 
+                          
+                      </form>
+                     &nbsp;&nbsp;&nbsp;&nbsp;<button  class="delete-button" onclick="deleteItem('{{ menu.id }}')" type="submit">Delete</button></td>
+                          {% else %}
+                          
+                          <td  class="price" >{% if menu.approval_flag %}$ {{ menu.dish_price }}{% else %}Pending for Pricing {%endif%} </td>
+                          <td  class="price" >{% if menu.approval_flag %}Approved{% else %}Pending for Approval{%endif%}</td>
+                          {% endif %}
+                      </tr>
+
+                    {% endfor %}
+                     
+                        </table>
+                  
+            </div>
+            
+        </div>
+        <p></p>  
+        <p></p>   
+<!-- Footer -->
+<footer class=" footer w3-center w3-light-grey w3-padding-48 w3-large">
+  <p>Powered by <a href="https://www.w3schools.com/w3css/default.asp" title="W3.CSS" target="_blank" class="w3-hover-text-green">w3.css</a>&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;© theCaFe.2023</p>
+  
+  <script>
+    function deleteItem(menuId) {
+      const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+  
+      fetch(`/api/delete-menu/${menuId}/delete/`, {
+        method: 'DELETE',
+        headers: {
+          'X-CSRFToken': csrftoken
+        }
+      })
+      .then(response => {
+        if (response.ok) {
+          document.getElementById('item-' + itemId).remove();  // Remove item from the DOM
+        } else {
+          alert('Failed to delete item');
+        }
+      })
+      .catch(error => console.error('Error:', error));
+    }
+  </script>
+ </body>
+ </html> 

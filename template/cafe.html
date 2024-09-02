@@ -1,0 +1,307 @@
+{% load static %}
+<html>
+<head>
+<title>Cafe world</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inconsolata">
+<link rel="stylesheet" href="{% static 'css/search.css' %}" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+<style>
+body, html {
+  height: 100%;
+  font-family: "Inconsolata", sans-serif;
+}
+
+.bgimg {
+  background-position: center;
+  background-size: cover;
+  background-image: url("{% static 'images/coffee.jpeg' %}");
+  min-height: 75%;
+}
+
+.menu {
+  display: none;
+}
+
+.cafe {
+
+  padding: 15px;
+  background-color: black;
+}
+
+.cafe-backgound{
+  font-size: 90px;
+    background-color: black;
+    font-size: 90px;
+    color: white;
+    border-color: white;
+    border-width: 0.25em;
+    border-style: double;
+    margin-left: -45px;
+}
+
+
+.tumbnail{
+
+height: 180px;
+width:190px;
+
+}
+.buy_now{
+  float:inline-start;
+  margin-left:24px; 
+  margin-top: -51px;
+}
+</style>
+</head>
+<body>
+
+<!-- Links (sit on top) -->
+<div class="w3-top">
+  <div class="w3-row w3-padding w3-black">
+    <div class="w3-col s3">
+      <a href="#" class="w3-button w3-block w3-black">HOME</a>
+    </div>
+    <div class="w3-col s2">
+      <a href="#about" class="w3-button w3-block w3-black">ABOUT</a>
+    </div>
+    <div class="w3-col s2">
+      <a href="#menu" class="w3-button w3-block w3-black">MENU</a>
+    </div>
+    <div class="w3-col s2">
+      <a href="#where" class="w3-button w3-block w3-black">WHERE</a>
+    </div>
+    <div class="w3-col s2">
+      <a href="{% url 'logout' %}" class="w3-button w3-block w3-black">LOGOUT</a>
+    </div>
+  </div>
+</div>
+
+<!-- Header with image -->
+<header class="bgimg w3-display-container w3-grayscale-min" id="home">
+  <div class="w3-display-bottomleft w3-center w3-padding-large w3-hide-small">
+    <span class="w3-tag">{{cafe.cafe_time}}</span>
+  </div>
+  <div class=" cafe w3-display-middle w3-center">
+    <span class=" cafe-backgound w3-text-golden" >the<br> Cafe</span>
+  </div>
+  <div class="w3-display-bottomright w3-center w3-padding-large">
+    <span class="w3-text-white">{{cafe.cafe_short_address}}</span>
+  </div>
+</header>
+
+<!-- Add a background color and large text to the whole page -->
+<div class="w3-sand w3-grayscale w3-large">
+
+<!-- About Container -->
+<div class="w3-container" id="about">
+  <div class="w3-content" style="max-width:700px">
+    <h5 class="w3-center w3-padding-64"><span class="w3-tag w3-wide">ABOUT THE CAFE</span></h5>
+    <div class="topnav">
+      <div class="search-container">
+        <form action="{% url 'search' %}" method="get">
+          <input type="text" placeholder="Search.." name="search">
+          <button type="submit"><i class="fa fa-search"></i></button>
+        </form>
+      </div>
+    </div>
+
+    <h6 class="text-center"><b><i>Welcome  &nbsp; {{ user.first_name}} &nbsp; {{user.last_name }}</i></b></h6>
+    <p>{{cafe.about}}</p>
+    <p>In addition to our full espresso and brew bar menu, we serve fresh made-to-order breakfast and lunch sandwiches, as well as a selection of sides and salads and other good stuff.</p>
+    <div class="w3-panel w3-leftbar w3-light-grey">
+      <p><i>"Use products from nature for what it's worth - but never too early, nor too late." Fresh is the new sweet.</i></p>
+      <p>Chef, Coffeeist and Owner: Liam Brown</p>
+    </div>
+    <img src="{% static 'images/about.jpg' %}" style="width:100%;max-width:1000px" class="w3-margin-top">
+    <p><strong>Opening hours:</strong> everyday {{cafe.cafe_time}}.</p>
+    <p><strong>Address:</strong> {{cafe.cafe_short_address}}</p>
+  </div>
+</div>
+
+<!-- Menu Container -->
+<div class="w3-container" id="menu">
+  <div class="w3-content" style="max-width:700px">
+ 
+    <h5 class="w3-center w3-padding-48"><span class="w3-tag w3-wide">THE MENU</span></h5>
+  
+    <div class="w3-row w3-center w3-card w3-padding">
+      <a href="javascript:void(0)" onclick="openMenu(event, 'Eat');" id="myLink">
+        <div class="w3-col s6 tablink">Eat</div>
+      </a>
+      <a href="javascript:void(0)" onclick="openMenu(event, 'Drinks');">
+        <div class="w3-col s6 tablink">Drink</div>
+      </a>
+    </div>
+
+    <div id="Eat" class="w3-container menu w3-padding-48 w3-card">
+      {% for menu in menus %}
+      <h5>{% if menu.approval_flag  and menu.category_name == 'Eat' %} {{ menu.dish_name }}</h5>
+
+      <p class ="w3-text-grey"><a><img class="tumbnail" src="/media/{{menu.dish_photo}}" ></img></a></p>
+      <br>
+      <form class="buy_now" action="{% url 'create-checkout-session' id=menu.id %}" method="POST">
+        {% csrf_token %}
+        <button class="w3-button w3-black w3-wide" type="submit" id="checkout-button">Order Now</button>
+      </form> 
+      <p class="w3-text-grey">{{ menu.dish_discription }} :  ${{ menu.dish_price }} 
+      </p>
+      {% endif %}
+     
+    {% endfor %}
+    </div>
+
+    <div id="Drinks" class="w3-container menu w3-padding-48 w3-card">
+      {% for menu in menus %}
+      <h5>{% if menu.approval_flag  and menu.category_name == 'Drinks' %} {{ menu.dish_name }}</h5>
+      <p class ="w3-text-grey"><a><img class="tumbnail" src="/media/{{menu.dish_photo}}" ></img></a></p>
+      <br>
+      <form class="buy_now" action="{% url 'create-checkout-session' id=menu.id %}" method="POST">
+        {% csrf_token %}
+        <button class="w3-button w3-black w3-wide" type="submit" id="checkout-button">Order Now</button>
+      </form> 
+      <p class="w3-text-grey">{{ menu.dish_discription }} : ₹{{ menu.dish_price }} </p>
+      {% endif %}
+     
+      {% endfor %}
+     
+    </div> 
+    <div class="w3-col s12">
+      <a href="{% url 'mymenu'%}" class="w3-button w3-block w3-black">You can Suggest Your flavored Eats and Drinks !</a>
+    </div> 
+    <img src="{% static 'images/snacks.jpg' %}" style="width:100%;max-width:1000px;margin-top:32px;">
+  </div>
+</div>
+
+<!-- Contact/Area Container -->
+<div class="w3-container" id="where" style="padding-bottom:32px;">
+  <div class="w3-content" style="max-width:700px">
+    <h5 class="w3-center w3-padding-48"><span class="w3-tag w3-wide">WHERE TO FIND US</span></h5>
+    <p>{{cafe.cafe_full_address}}<br>Ph:{{cafe.phone_no}}({{cafe.country}})</p>
+    <img src="{% static 'images/where.jpeg' %}" class="w3-image" style="width:100%">
+    <p><span class="w3-tag">FYI!</span> We offer full-service catering for any event, large or small. We understand your needs and we will cater the food to satisfy the biggerst criteria of them all, both look and taste.</p>
+    <p><strong>Reserve</strong> a table, ask for today's special or just send us a message:</p>
+    
+    <!-- Contact form  -->
+    <form method="post" action="{% url 'contact' %}">
+      {% csrf_token %}
+     <p><input type="text" name="{{ form.name.name }}" class="w3-input w3-padding-15 w3-border"
+                          id="{{ form.name.id_for_label }}"
+                          {% if form.name.value != None %}value="{{ form.name.value|stringformat:'s' }}"{% endif %}
+                          maxlength="{{ form.name.field.max_length }}"
+                          {% if form.name.field.required %}required{% endif %}
+                          placeholder="Name" autocomplete="off">
+                          {% if form.errors.name %}
+                            <p style="color: red">{{form.errors.name}}</p>
+                          {% endif %}</p>
+
+     <p><input type="number" name="{{ form.number_of_People.name }}" class="w3-input w3-padding-15 w3-border"
+                          id="{{ form.number_of_People.id_for_label }}"
+                          {% if form.number_of_People.value != None %}value="{{ form.number_of_People.value|stringformat:'s' }}"{% endif %}
+                          maxlength="{{ form.number_of_People.field.max_length }}"
+                          {% if form.number_of_People.field.required %}required{% endif %}
+                          placeholder="Number of People" autocomplete="off">
+                          {% if form.errors.number_of_People %}
+                            <p style="color: red">{{form.errors.number_of_People}}</p>
+                          {% endif %}</p>
+    <p> <input type="datetime-local" name="{{ form.date_of_booking.name }}" class="w3-input w3-padding-15 w3-border"
+                          id="{{ form.date_of_booking.id_for_label }}"
+                          {% if form.date_of_booking.value != None %}value="{{ form.date_of_booking.value|stringformat:'s' }}"{% endif %}
+                          maxlength="{{ form.date_of_booking.field.max_length }}"
+                          {% if form.date_of_booking.field.required %}required{% endif %}
+                          placeholder="Date of Booking" autocomplete="off">
+                          {% if form.errors.date_of_booking %}
+                            <p style="color: red">{{form.errors.date_of_booking}}</p>
+                          {% endif %}</p>
+      <p> <input type="textarea" name="{{ form.message.name }}" class="w3-input w3-padding-15 w3-border"
+                            id="{{ form.message.id_for_label }}"
+                            {% if form.message.value != None %}value="{{ form.message.value|stringformat:'s' }}"{% endif %}
+                            maxlength="{{ form.message.field.max_length }}"
+                            {% if form.message.field.required %}required{% endif %}
+                            placeholder="Message" autocomplete="off">
+                            {% if form.errors.message %}
+                              <p style="color: red">{{form.errors.message}}</p>
+                            {% endif %}</p>
+     <p> <input type="number" name="{{ form.phone_no.name }}" class="w3-input w3-padding-15 w3-border"
+                              id="{{ form.phone_no.id_for_label }}"
+                              {% if form.phone_no.value != None %}value="{{ form.phone_no.value|stringformat:'s' }}"{% endif %}
+                              maxlength="{{ form.phone_no.field.max_length }}"
+                              {% if form.phone_no.field.required %}required{% endif %}
+                              placeholder="Phone" autocomplete="off">
+                              {% if form.errors.phone_no %}
+                                <p style="color: red">{{form.errors.phone_no}}</p>
+                              {% endif %}</p>
+      <!-- <p><input class="w3-input w3-padding-16 w3-border" type="number" placeholder="How many people" required name="People"></p>
+      <p><input class="w3-input w3-padding-16 w3-border" type="datetime-local" placeholder="Date and time" required name="date" value="2020-11-16T20:00"></p>
+      <p><input class="w3-input w3-padding-16 w3-border" type="textarea" placeholder="Message \ Special requirements" required name="Message"></p>
+      <p><input class="w3-input w3-padding-16 w3-border" type="number" placeholder="Phone Number" required name="Phone"></p> -->
+      <p><button class="w3-button w3-black" type="submit">SEND MESSAGE</button>&nbsp; &nbsp; &nbsp;<button class="w3-button w3-black" type="reset">RESET</button></p>
+    </form>
+  </div>
+</div>
+
+<!-- End page content -->
+</div>
+
+<!-- Footer -->
+<footer class="w3-center w3-light-grey w3-padding-48 w3-large">
+  <p>Powered by <a href="https://www.w3schools.com/w3css/default.asp" title="W3.CSS" target="_blank" class="w3-hover-text-green">w3.css</a>&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;© theCaFe.2023</p>
+</footer>
+
+<script>
+   
+// Tabbed Menu
+function openMenu(evt, menuName) {
+  var i, x, tablinks;
+  x = document.getElementsByClassName("menu");
+  for (i = 0; i < x.length; i++) {
+    x[i].style.display = "none";
+  }
+  tablinks = document.getElementsByClassName("tablink");
+  for (i = 0; i < x.length; i++) {
+    tablinks[i].className = tablinks[i].className.replace(" w3-dark-grey", "");
+  }
+  document.getElementById(menuName).style.display = "block";
+  evt.currentTarget.firstElementChild.className += " w3-dark-grey";
+}
+document.getElementById("myLink").click();
+</script>
+<script src="https://js.stripe.com/v3/"></script>
+<script type="text/javascript">
+  const csrf_token=document.querySelector('[name=csrfmiddlewaretoken]')
+  // Create an instance of the Stripe object with your publishable API key
+  var stripe =Stripe("pk_test_51MYitFSECsjikibznv0W4Wa7FMyS5fwfEtWtBsjbPBvGYslIz2hUkd5oHs6tgVqlgzQVXSDRv183aMSMVYmyVNT0000D6n4atl");
+  var checkoutButton = document.getElementById('checkout-button');
+ 
+  checkoutButton.addEventListener('click', function() {
+  // Create a new Checkout Session using the server-side endpoint you
+  // created in step 3.
+  fetch("/create-checkout-session/", {
+  method: 'POST',
+  headers:{
+    'x-CSRFToken':csrf_token,
+  }
+  })
+  .then(function(response) {
+  return response.json();
+  })
+  .then(function(session) {
+  return stripe.redirectToCheckout({ sessionId: session.id });
+  })
+  .then(function(result) {
+  // If `redirectToCheckout` fails due to a browser or network
+  // error, you should display the localized error message to your
+  // customer using `error.message`.
+  if (result.error) {
+  alert(result.error.message);
+  }
+  })
+  .catch(function(error) {
+  console.error('Error:', error);
+  });
+  });
+  </script>
+</body>
+</html>

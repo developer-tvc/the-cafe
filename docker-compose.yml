@@ -1,0 +1,57 @@
+version: '3.1'
+
+volumes:
+  init-db:
+  data-db:
+
+services:
+  mongodb:
+    image: mongo
+    restart: always
+    volumes:
+      - ./init-db:/docker-entrypoint-initdb.d
+      - ./data-db:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: 
+      MONGO_INITDB_ROOT_PASSWORD:
+      MONGO_INITDB_DATABASE: mymongo_db
+      MONGO_INITDB_HOST: mongodb
+      MONGO_INITDB_ENGINE : djongo
+    ports:
+      - 27017:27017
+
+  web:
+    image: app
+    restart: always
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/the-cafe
+    ports:
+      - 8000:8000
+    links:
+      - mongodb
+    depends_on:
+      - migration
+
+  migration:
+    build: .
+    image: app
+    command: python manage.py migrate --noinput
+    volumes:
+      - .:/the-cafe
+    links:
+      - mongodb
+    depends_on:
+      - make_migrations
+
+  make_migrations:
+    build: .
+    image: app
+
+    command: python manage.py makemigrations
+    volumes:
+      - .:/the-cafe
+    links:
+      - mongodb
+    depends_on:
+      - mongodb
