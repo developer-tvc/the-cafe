@@ -118,7 +118,7 @@ class CafeHome(TemplateView):
 
     def get_context_data(self, **kwargs):
         try:
-            cafe = AboutCafe.objects.get(id=2)
+            cafe = AboutCafe.objects.all().first()
             menus = Menu.objects.values(
                 "id",
                 "dish_name",
@@ -132,6 +132,7 @@ class CafeHome(TemplateView):
             context["cafe"] = cafe
             context["menus"] = menus
             context["form"] = self.form
+            print(context)
             return context
         except Exception as e:
             print(e)
@@ -180,9 +181,11 @@ class CafeMenu(APIView):
         try:
             if not request.POST._mutable:
                 request.POST._mutable = True
-                caf = AboutCafe.objects.get(id=2)
+                caf = AboutCafe.objects.all().first()
+                print(caf.id)
                 cat = request.POST.get("category")
                 c_name = Category.objects.get(id=cat)
+                
                 request.data["cafe"] = caf.id
                 request.data["category_name"] = c_name.category_name
             serializer = MenuSerializer(data=request.data)
@@ -279,7 +282,7 @@ class CafeContact(APIView):
 
     def get(self, request):
         try:
-            cafe = AboutCafe.objects.get(id=2)
+            cafe = AboutCafe.objects.all().first()
             menus = Menu.objects.values(
                 "id",
                 "dish_name",
@@ -303,7 +306,7 @@ class CafeContact(APIView):
             serializer = ContactSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save()
-                cafe = AboutCafe.objects.get(id=2)
+                cafe = AboutCafe.objects.all().first()
                 menus = Menu.objects.values(
                     "id",
                     "dish_name",
