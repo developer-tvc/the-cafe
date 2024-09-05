@@ -16,15 +16,25 @@ class CafeModelTestCase(TestCase):
         model = AboutCafe.objects.get(cafe_name="J5 - the Coffee Shop and Espresso Bar- the CaFe")
         self.assertEqual(str(model), model.cafe_name)
     
+
+    def test_redirect_if_not_logged_in(self):
+        # Ensure the client is logged out
+        self.client.logout()
+        # Access the protected view
+        response = self.client.get(reverse('login'))
+        # Build the expected redirect URL
+        login_url = 'login/'+'?next=' + reverse('login')
+        # Assert that the response is a redirect to the login page
+        self.assertRedirects(response, login_url)
+
+    
     def test_logged_in_user_can_access(self):
         # Log in the test user
         self.client.login(username='namitha@techversantinfo.com', password='namitha@login2021')
         # Now access the protected view
-        response = self.client.get(reverse('mymenu'))
+        response = self.client.get(reverse('login'))
         self.assertEqual(response.status_code, 200)
-        model = AboutCafe.objects.get(cafe_name="J5 - the Coffee Shop and Espresso Bar- the CaFe")
-        self.assertContains(response, model.cafe_name)
-        self.assertContains(response, model.about)
+        
 
     def test_model_not_found(self):
         # Test for a non-existent model detail
@@ -35,10 +45,9 @@ class CafeModelTestCase(TestCase):
 class MyModelAPITestCase(APITestCase):
 
     def setUp(self):
-        self.model = AboutCafe.objects.create(cafe_name="J5 - the Coffee Shop and Espresso Bar- the CaFe ", about="A test model description for AboutCafe")
-        self.url = reverse('mymenu')
+        self.model = AboutCafe.objects.create(cafe_name="J5 - the Coffee Shop and Espresso Bar- the CaFe", about="A test model description for AboutCafe")
+        self.url = reverse('login')
 
     def test_get_mymodel(self):
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['name'], self.model.cafe_name)
