@@ -1,4 +1,7 @@
 import json
+import logging
+import re
+from decimal import Decimal
 import pymongo
 import requests
 import stripe
@@ -14,10 +17,11 @@ from django.views.generic import TemplateView
 
 from pprint import PrettyPrinter
 from rest_framework import permissions, status
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.renderers import TemplateHTMLRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.throttling import ScopedRateThrottle
 
 
 from .forms import MenuForm, ContactForm
@@ -35,6 +39,8 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 printer = PrettyPrinter()
 
 User = get_user_model()
+
+logger = logging.getLogger('pantry')
 
 
 class GoogleAuthAPIView(APIView):
@@ -61,6 +67,8 @@ class GoogleAuthAPIView(APIView):
     - google-auth: A third-party package used to verify the Google OAuth token.
     - rest_framework: Django Rest Framework for API view handling and response formatting.
     """
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'auth'
 
     def post(self, request, *args, **kwargs):
         try:
@@ -72,6 +80,7 @@ class GoogleAuthAPIView(APIView):
                 user_info_response = requests.get(
                     settings.SOCIAL_REST_GOOGLE_OAUTH2_URL,
                     headers={"Authorization": f"Bearer {access_token}"},
+                    timeout=10,
                 )
                 if user_info_response.status_code == 200:
                     user_info = user_info_response.json()
@@ -80,15 +89,16 @@ class GoogleAuthAPIView(APIView):
                         email=user_info["email"],
                         defaults={"username": user_info["name"]},
                     )
-                    # Optionally update user info here if needed
-                    if created:
-                        pass  # Handle any additional user setup here
                     # Return user data or any other response
                     return Response(
                         {"user": {"username": user.username, "email": user.email}},
                         status=status.HTTP_200_OK,
                     )
                 else:
+                    logger.warning(
+                        "Google OAuth: failed to fetch user info, status %s",
+                        user_info_response.status_code,
+                    )
                     return Response(
                         {"error": "Failed to fetch user info"},
                         status=status.HTTP_400_BAD_REQUEST,
@@ -98,8 +108,11 @@ class GoogleAuthAPIView(APIView):
                 {"error": "Invalid data"}, status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
-            print(e)
-            return Response(status=status.HTTP_400_BAD_REQUEST, data=e)
+            logger.error("Google OAuth error: %s", str(e), exc_info=True)
+            return Response(
+                {"error": "Authentication failed"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class CafeHome(TemplateView):
@@ -132,10 +145,9 @@ class CafeHome(TemplateView):
             context["cafe"] = cafe
             context["menus"] = menus
             context["form"] = self.form
-            print(context)
             return context
         except Exception as e:
-            print(e)
+            logger.error("CafeHome error: %s", str(e), exc_info=True)
             return HttpResponseRedirect("something_went_wrong.html")
 
 
@@ -154,7 +166,7 @@ class CafeMenu(APIView):
     """
 
     renderer_classes = [TemplateHTMLRenderer]
-    permissions = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     template_name = "suggestion_menu.html"
     form = MenuForm()
 
@@ -174,7 +186,7 @@ class CafeMenu(APIView):
                 request, self.template_name, {"form": self.form, "menus": menus}
             )
         except Exception as e:
-            print(e)
+            logger.error("CafeMenu GET error: %s", str(e), exc_info=True)
             return render(request, "something_went_wrong.html")
 
     def post(self, request):
@@ -182,12 +194,12 @@ class CafeMenu(APIView):
             if not request.POST._mutable:
                 request.POST._mutable = True
                 caf = AboutCafe.objects.all().first()
-                print(caf.id)
                 cat = request.POST.get("category")
                 c_name = Category.objects.get(id=cat)
-                
+
                 request.data["cafe"] = caf.id
                 request.data["category_name"] = c_name.category_name
+                request.POST._mutable = False
             serializer = MenuSerializer(data=request.data)
             if serializer.is_valid():
                 serializer.save()
@@ -198,7 +210,7 @@ class CafeMenu(APIView):
             else:
                 return render(request, "something_went_wrong.html")
         except Exception as e:
-            print(e)
+            logger.error("CafeMenu POST error: %s", str(e), exc_info=True)
             return render(request, "something_went_wrong.html")
 
 
@@ -218,7 +230,7 @@ class UpdateCafeMenu(APIView):
     """
 
     renderer_classes = [TemplateHTMLRenderer]
-    permissions = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
     template_name = "suggestion_menu.html"
     form = MenuForm()
 
@@ -226,11 +238,11 @@ class UpdateCafeMenu(APIView):
         try:
             if not request.POST._mutable:
                 request.POST._mutable = True
-                if request.data["approval_flag"] == "on":
+                if request.data.get("approval_flag") == "on":
                     request.data["approval_flag"] = True
                 else:
                     request.data["approval_flag"] = False
-            request.POST._mutable = False
+                request.POST._mutable = False
             initial_data = request.data
             menu_id = request.data["id"]
             menu = Menu.objects.get(id=menu_id)
@@ -242,25 +254,26 @@ class UpdateCafeMenu(APIView):
                     request, self.template_name, {"form": self.form, "menus": menus}
                 )
             else:
-                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+                return render(request, "something_went_wrong.html")
+        except Menu.DoesNotExist:
+            return render(request, "something_went_wrong.html")
         except Exception as e:
-            print(e)
+            logger.error("UpdateCafeMenu POST error: %s", str(e), exc_info=True)
             return render(request, "something_went_wrong.html")
 
     def delete(self, request, id, *args, **kwargs):
         try:
             menu_id = int(id)
             menu = Menu.objects.get(id=menu_id)
-            deleted = menu.delete()
-            if deleted:
-                menus = Menu.objects.all()
-                return render(
-                    request, self.template_name, {"form": self.form, "menus": menus}
-                )
-            else:
-                return Response(request, status=status.HTTP_400_BAD_REQUEST)
+            menu.delete()
+            menus = Menu.objects.all()
+            return render(
+                request, self.template_name, {"form": self.form, "menus": menus}
+            )
+        except Menu.DoesNotExist:
+            return render(request, "something_went_wrong.html")
         except Exception as e:
-            print(e)
+            logger.error("UpdateCafeMenu DELETE error: %s", str(e), exc_info=True)
             return render(request, "something_went_wrong.html")
 
 
@@ -298,7 +311,7 @@ class CafeContact(APIView):
                 {"form": self.form, "menus": menus, "cafe": cafe},
             )
         except Exception as e:
-            print(e)
+            logger.error("CafeContact GET error: %s", str(e), exc_info=True)
             return render(request, "something_went_wrong.html")
 
     def post(self, request):
@@ -322,9 +335,9 @@ class CafeContact(APIView):
                     {"form": self.form, "menus": menus, "cafe": cafe},
                 )
             else:
-                return HttpResponse("Could not save data")
+                return render(request, "something_went_wrong.html")
         except Exception as e:
-            print(e)
+            logger.error("CafeContact POST error: %s", str(e), exc_info=True)
             return render(request, "something_went_wrong.html")
 
 
@@ -350,26 +363,49 @@ class SearchCafeMenu(APIView):
 
     renderer_classes = [TemplateHTMLRenderer]
     permission_classes = [IsAuthenticated]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'search'
     template_name = "search_results.html"
 
-    try:
-        # Mongo DB connection
+    @staticmethod
+    def _get_mongo_collection():
         myclient = pymongo.MongoClient(settings.DATABASE_CONNECTION)
         db = myclient.mymongo_db
-        # Collection Object
-        collection = db.pantry_menu
+        return db.pantry_menu
 
-        def get(self, request):
-            my_search = request.GET.get("search")
-            result = self.collection.find({"$text": {"$search": my_search}})
+    @staticmethod
+    def _sanitize_search_query(query):
+        """Sanitize the search query to prevent MongoDB injection.
+
+        Only allows alphanumeric characters, spaces, hyphens, and common
+        punctuation. Limits length and strips special MongoDB operators.
+        """
+        if not query or not isinstance(query, str):
+            return ""
+        # Strip MongoDB operators and special characters
+        query = re.sub(r'[\$\{\}\[\]\^\'"\\/]', '', query)
+        # Allow only safe characters: letters, numbers, spaces, hyphens, apostrophes, commas
+        query = re.sub(r'[^a-zA-Z0-9\s\-\',.]', '', query)
+        # Limit length
+        return query.strip()[:100]
+
+    def get(self, request):
+        my_search = request.GET.get("search", "")
+        my_search = self._sanitize_search_query(my_search)
+        if not my_search:
+            return render(
+                request, self.template_name, {"result": [], "search": ""}
+            )
+        try:
+            collection = self._get_mongo_collection()
+            result = collection.find({"$text": {"$search": my_search}})
             result = list(result)
-            printer.pprint(list(result))
             return render(
                 request, self.template_name, {"result": result, "search": my_search}
             )
-
-    except Exception as e:
-        print(e)
+        except Exception as e:
+            logger.error("SearchCafeMenu error: %s", str(e), exc_info=True)
+            return render(request, "something_went_wrong.html")
 
 
 class CreateCheckoutSessionView(View):
@@ -424,8 +460,11 @@ class CreateCheckoutSessionView(View):
             )
             return redirect(checkout_session.url)
 
+        except Menu.DoesNotExist:
+            logger.warning("CreateCheckoutSessionView: menu item not found")
+            return render(request, "something_went_wrong.html")
         except Exception as e:
-            print(e)
+            logger.error("CreateCheckoutSessionView error: %s", str(e), exc_info=True)
             return render(request, "something_went_wrong.html")
 
 
@@ -469,31 +508,39 @@ def stripe_webhook(request):
              - stripe webhook used for catch and take action based on events
 
     """
+    if request.method != "POST":
+        return HttpResponse(status=405)
+
     payload = json.loads(request.body)
-    sig_hader = request.META["HTTP_STRIPE_SIGNATURE"]
+    sig_header = request.META.get("HTTP_STRIPE_SIGNATURE")
+    if not sig_header:
+        logger.warning("Stripe webhook: missing signature header")
+        return HttpResponse(status=400)
+
     event = None
 
     try:
         event = stripe.Webhook.construct_event(
-            payload, sig_hader, settings.STRIPE_WEBHOOK_SECRET
+            payload, sig_header, settings.STRIPE_WEBHOOK_SECRET
         )
     except ValueError as e:
-        print(e)
-        # Invalied payload
+        logger.warning("Stripe webhook: invalid payload - %s", str(e))
+        # Invalid payload
         return HttpResponse(status=400)
     except stripe.error.SignatureVerificationError as e:
-        # Invalied signature
+        logger.warning("Stripe webhook: invalid signature - %s", str(e))
+        # Invalid signature
         return HttpResponse(status=400)
-    print(event)
+
     # Handle the checkout.session.completed event'
     try:
         if event["type"] == "payment_intent.succeeded":
             session = event["data"]["object"]
-            print(session)
+            logger.info("Stripe webhook: payment_intent.succeeded for session %s", session.get("id"))
         return HttpResponse(status=200)
     except Exception as e:
-        print(e)
-        return Response(status=status.HTTP_400_BAD_REQUEST, data=e)
+        logger.error("Stripe webhook processing error: %s", str(e), exc_info=True)
+        return HttpResponse(status=400)
 
 
 class CartView(APIView):
@@ -521,66 +568,85 @@ class CartView(APIView):
 
     """
 
-    permission_classes = [
-        AllowAny,
-    ]
+    permission_classes = [IsAuthenticated]
 
     # Show Cart Items
     def get(self, request):
         try:
             user = request.user
             cart_item = Cart.objects.filter(user=user, orderd=False).first()
-            print(cart_item)
+            if not cart_item:
+                return Response({"Cart Items": []})
             query_set = CartItem.objects.filter(cart=cart_item)
-
             serializer = CartItemsSerializer(query_set, many=True)
-            print(serializer.data)
-            return Response(
-                {"success": "Permission Working", "Cart Items": serializer.data}
-            )
+            return Response({"Cart Items": serializer.data})
         except Exception as e:
-            print(e)
-            return Response(status=status.HTTP_400_BAD_REQUEST, data=e)
+            logger.error("CartView GET error: %s", str(e), exc_info=True)
+            return Response(
+                {"error": "An error occurred while fetching the cart"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     # Add Cart Items
     def post(self, request):
-        data = request.data
-        user = request.user
-        cart_item, _ = Cart.objects.get_or_create(user=user, orderd=False)
         try:
-            menu_item = Menu.objects.get(id=data.get("menu_item"))
-            price = menu_item.dish_price
-            quantity = data.get("quantity")
-            cart_items = cartItem(
-                cart=cart_item,
-                user=user,
-                product=menu_item,
-                price=price,
-                quantity=quantity,
+            data = request.data
+            user = request.user
+            cart_item, _ = Cart.objects.get_or_create(user=user, orderd=False)
+            try:
+                menu_item = Menu.objects.get(id=data.get("menu_item"))
+                price = menu_item.dish_price
+                quantity = data.get("quantity")
+                cart_items = CartItem(
+                    cart=cart_item,
+                    user=user,
+                    product=menu_item,
+                    price=price,
+                    quantity=quantity,
+                )
+                cart_items.save()
+                total_price = Decimal('0.00')
+                cart_items = CartItem.objects.filter(user=user, cart=cart_item.id)
+                for items in cart_items:
+                    total_price += items.price
+                cart_item.total_price = total_price
+                cart_item.save()
+            except Menu.DoesNotExist:
+                logger.warning("CartView POST: menu item %s not found", data.get("menu_item"))
+                return Response(
+                    {"error": "Menu item not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            return Response({"Success": "Items added to your Cart"})
+        except Exception as e:
+            logger.error("CartView POST error: %s", str(e), exc_info=True)
+            return Response(
+                {"error": "An error occurred while adding to cart"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-            cart_items.save()
-            total_price = 0
-            cart_items = CartItem.objects.filter(user=user, cart=cart_item.id)
-            for items in cart_items:
-                total_price += items.price
-            cart_item.total_price = total_price
-            cart_item.save()
-        except menu_item.DoesNotExist:
-            pass
-        return Response({"Success": "Items added to your Cart"})
 
     # Update Cart Items
     def put(self, request):
-        data = request.data
-        user = request.user
         try:
+            data = request.data
+            user = request.user
             cart_item = CartItem.objects.get(id=data.get("id"))
+            # Ownership check: ensure the cart item belongs to the requesting user
+            if cart_item.user != user:
+                logger.warning(
+                    "CartView PUT: user %s attempted to update cart item %s owned by user %s",
+                    user.id, cart_item.id, cart_item.user.id
+                )
+                return Response(
+                    {"error": "Not authorized to update this cart item"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             quantity = int(data.get("quantity"))
             cart_item.quantity += quantity
             cart_item.save()
 
-            cart_item_new, _ = cart.objects.get_or_create(user=user, orderd=False)
-            total_price = 0
+            cart_item_new, _ = Cart.objects.get_or_create(user=user, orderd=False)
+            total_price = Decimal('0.00')
             cart_items = CartItem.objects.filter(user=user, cart=cart_item_new.id)
             for items in cart_items:
                 total_price += items.price
@@ -591,19 +657,37 @@ class CartView(APIView):
             query_set = CartItem.objects.filter(cart=my_cart)
             serializer = CartItemsSerializer(query_set, many=True)
             return Response(serializer.data)
+        except CartItem.DoesNotExist:
+            return Response(
+                {"error": "Cart item not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         except Exception as e:
-            print(e)
-            return Response(status=status.HTTP_400_BAD_REQUEST, data=e)
+            logger.error("CartView PUT error: %s", str(e), exc_info=True)
+            return Response(
+                {"error": "An error occurred while updating the cart"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
     # Delete Cart Items
     def delete(self, request):
-        data = request.data
-        user = request.user
         try:
+            data = request.data
+            user = request.user
             cart_item = CartItem.objects.get(id=data.get("id"))
+            # Ownership check: ensure the cart item belongs to the requesting user
+            if cart_item.user != user:
+                logger.warning(
+                    "CartView DELETE: user %s attempted to delete cart item %s owned by user %s",
+                    user.id, cart_item.id, cart_item.user.id
+                )
+                return Response(
+                    {"error": "Not authorized to delete this cart item"},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
             cart_item.delete()
             cart_item_new, _ = Cart.objects.get_or_create(user=user, orderd=False)
-            total_price = 0
+            total_price = Decimal('0.00')
             cart_items = CartItem.objects.filter(user=user, cart=cart_item_new.id)
             for items in cart_items:
                 total_price += items.price
@@ -613,6 +697,14 @@ class CartView(APIView):
             query_set = CartItem.objects.filter(cart=my_cart)
             serializer = CartItemsSerializer(query_set, many=True)
             return Response(serializer.data)
+        except CartItem.DoesNotExist:
+            return Response(
+                {"error": "Cart item not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
         except Exception as e:
-            print(e)
-            return Response(status=status.HTTP_400_BAD_REQUEST, data=e)
+            logger.error("CartView DELETE error: %s", str(e), exc_info=True)
+            return Response(
+                {"error": "An error occurred while deleting from cart"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )

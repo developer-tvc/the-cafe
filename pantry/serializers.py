@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from decimal import Decimal
 
 from .models import AboutCafe, Cart, CartItem, Contact, Menu
 
@@ -31,19 +32,18 @@ class UpdateMenuSerializer(serializers.ModelSerializer):
         model = Menu
         fields = ["dish_price", "approval_flag"]
 
-        def update(self, instance, validated_data):
-
-            instance.dish_price = validated_data.get("dish_price", instance.dish_price)
-            instance.approval_flag = validated_data.get(
-                "approval_flag", instance.approval_flag
-            )
-            instance.save()
-            return instance
+    def update(self, instance, validated_data):
+        instance.dish_price = validated_data.get("dish_price", instance.dish_price)
+        instance.approval_flag = validated_data.get(
+            "approval_flag", instance.approval_flag
+        )
+        instance.save()
+        return instance
 
 
 class UserSerializer(serializers.Serializer):
-    first_name = serializers.EmailField()
-    last_name = serializers.EmailField()
+    first_name = serializers.CharField(max_length=100)
+    last_name = serializers.CharField(max_length=100)
     email = serializers.EmailField()
     username = serializers.CharField(max_length=100)
 
@@ -68,3 +68,9 @@ class CartItemsSerializer(serializers.ModelSerializer):
     class Meta:
         model = CartItem
         fields = ["cart", "user", "product", "price", "quantity"]
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if isinstance(data.get('price'), Decimal):
+            data['price'] = str(data['price'])
+        return data

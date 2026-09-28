@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.db.models.signals import pre_save, post_save
 from django.core.signals import request_finished
 from django.dispatch import receiver
+from decimal import Decimal
 
 
 class AboutCafe(models.Model):
@@ -29,8 +30,8 @@ class Category(models.Model):
 
 class Menu(models.Model):
     id = models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
-    cafe = models.ForeignKey("aboutCafe", on_delete=models.CASCADE)
-    category = models.ForeignKey("category", on_delete=models.CASCADE)
+    cafe = models.ForeignKey("AboutCafe", on_delete=models.CASCADE)
+    category = models.ForeignKey("Category", on_delete=models.CASCADE)
     category_name = models.CharField(max_length=300, null=True, blank=True)
     dish_name = models.CharField(max_length=300, null=True, blank=True)
     dish_discription = models.TextField(max_length=500, null=True, blank=True)
@@ -60,7 +61,7 @@ class Cart(models.Model):
     id = models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     orderd = models.BooleanField(blank=True)
-    total_price = models.FloatField(default=0)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
 
     def __str__(self):
         return str(self.user.first_name) + "   " + str(self.total_price)
@@ -68,16 +69,15 @@ class Cart(models.Model):
 
 class CartItem(models.Model):
     id = models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')
-    cart = models.ForeignKey("cart", on_delete=models.CASCADE)
+    cart = models.ForeignKey("Cart", on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     product = models.ForeignKey("Menu", on_delete=models.CASCADE)
-    price = models.FloatField(default=0)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal('0.00'))
     isOrder = models.CharField(max_length=300, null=True, blank=True)
     total_items = models.IntegerField(default=0)
     quantity = models.IntegerField(default=1)
 
     def __str__(self):
-
         return str(self.product)
 
 
@@ -85,6 +85,4 @@ class CartItem(models.Model):
 def calculate_price(sender, **kwargs):
     new_cart_items = kwargs["instance"]
     price_of_product = Menu.objects.get(id=new_cart_items.product.id)
-    new_cart_items.price = int(new_cart_items.quantity) * int(
-        price_of_product.dish_price
-    )
+    new_cart_items.price = int(new_cart_items.quantity) * Decimal(str(price_of_product.dish_price))

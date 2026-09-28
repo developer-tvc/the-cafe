@@ -12,13 +12,13 @@ services:
       - ./init-db:/docker-entrypoint-initdb.d
       - ./data-db:/data/db
     environment:
-      MONGO_INITDB_ROOT_USERNAME: 
-      MONGO_INITDB_ROOT_PASSWORD:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: mymongo_db
       MONGO_INITDB_HOST: mongodb
       MONGO_INITDB_ENGINE : djongo
-    ports:
-      - 27017:27017
+    networks:
+      - cafe-internal
 
   web:
     image: app
@@ -32,6 +32,11 @@ services:
       - mongodb
     depends_on:
       - migration
+    environment:
+      MONGO_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    networks:
+      - cafe-internal
 
   migration:
     build: .
@@ -55,3 +60,6 @@ services:
       - mongodb
     depends_on:
       - mongodb
+
+networks:
+  cafe-internal:

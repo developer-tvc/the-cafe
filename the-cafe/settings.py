@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/3.1/ref/settings/
 import os
 from datetime import timedelta
 from pathlib import Path
+import logging
+import re
 # import mongoengine
 import mongoengine
 from dotenv import load_dotenv
@@ -28,13 +30,22 @@ BASE_DIR = Path(__file__).resolve(strict=True).parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY environment variable must be set.")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = ['27017','*','']
+# Allowed hosts — replace with your actual domains
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
+ALLOWED_HOSTS = [h.strip() for h in ALLOWED_HOSTS if h.strip()]
+if not ALLOWED_HOSTS:
+    raise RuntimeError("ALLOWED_HOSTS environment variable must be set (comma-separated).")
+
 SITE_ID=2
 CAFE_DOMAIN = os.environ.get('DOMAIN')
+if not CAFE_DOMAIN:
+    raise RuntimeError("DOMAIN environment variable must be set.")
 # Application definition
 
 INSTALLED_APPS = [
@@ -65,6 +76,11 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'social_django.middleware.SocialAuthExceptionMiddleware',
 ]
+
+# Rate limiting
+RATELIMIT_VIEW = 'rest_framework.throttling.AnonRateThrottle'
+RATELIMIT_FAIL_OPEN = False
+RATELIMIT_USE_CACHE = 'default'
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
@@ -98,14 +114,78 @@ TEMPLATES = [
 WSGI_APPLICATION = 'the-cafe.wsgi.application'
 
 REST_FRAMEWORK = {
-    
+
     'DEFAULT_AUTHENTICATION_CLASSES': (
 
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
-    )
-    
+    ),
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '30/min',
+        'user': '60/min',
+        'auth': '10/min',
+        'search': '30/min',
+    }
+}
+
+# HTTPS / Security settings
+SECURE_SSL_REDIRECT = True
+SECURE_HSTS_SECONDS = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_HTTPONLY = True
+X_FRAME_OPTIONS = 'DENY'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'django-error.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'INFO',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+    },
+    'root': {
+        'handlers': ['file', 'console'],
+        'level': 'INFO',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'ERROR',
+            'propagate': False,
+        },
+        'pantry': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
 }
 
 # Database
@@ -129,7 +209,23 @@ DATABASES = {
    }
 }
 
+MONGO_ROOT_USERNAME = os.environ.get('MONGO_ROOT_USERNAME', 'admin')
+MONGO_ROOT_PASSWORD = os.environ.get('MONGO_ROOT_PASSWORD')
+if not MONGO_ROOT_PASSWORD:
+    raise RuntimeError("MONGO_ROOT_PASSWORD environment variable must be set.")
+
 DATABASE_CONNECTION = os.environ.get("MONGO_DB")
+if not DATABASE_CONNECTION:
+    # Build connection string with authentication
+    _mongo_user = MONGO_ROOT_USERNAME
+    _mongo_pass = MONGO_ROOT_PASSWORD
+    _mongo_host = os.environ.get('MONGO_DB_HOST', 'mongodb')
+    _mongo_port = os.environ.get('MONGO_DB_PORT', '27017')
+    _mongo_db = os.environ.get('MONGO_DB_NAME', 'mymongo_db')
+    DATABASE_CONNECTION = (
+        f"mongodb://{_mongo_user}:{_mongo_pass}"
+        f"@{_mongo_host}:{_mongo_port}/{_mongo_db}?authSource=admin"
+    )
 # DATABASES = {
 #     'default': {
 #         'ENGINE': 'djongo',
